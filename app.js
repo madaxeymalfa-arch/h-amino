@@ -584,16 +584,7 @@ const App = {
         const graduated = students.filter(s => s.status === 'Graduated').length;
 
         const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-        const monthlyFees = fees.filter(f => f.month === currentMonth);
-        const collected = monthlyFees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0);
-
-        const currentYearPrefix = Store.state.currentYear.split('-')[0];
-        const monthlyAttendance = attendance.filter(a => a.date.startsWith(new Date().toISOString().slice(0, 7))).length;
-        const totalAttendance = attendance.length;
-
-        // 3. Salaries & Daily Stats
-        const totalSalaries = teachers.reduce((sum, t) => sum + (t.salary || 0), 0);
-        const paidThisMonth = monthlyFees.filter(f => f.status === 'PAID').length; // Count of paid students
+        const totalSalaries = teachers.reduce((sum, t) => sum + (parseFloat(t.salary) || 0), 0);
 
         const today = new Date().toISOString().split('T')[0];
         const todayAtt = attendance.filter(a => a.date === today);
@@ -601,9 +592,13 @@ const App = {
         const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
         const lateToday = todayAtt.filter(a => a.status === 'Late').length;
 
-        // Financial Summary
-        const expected = monthlyFees.reduce((sum, f) => sum + (f.amount || 20), 0);
-        const pending = expected - collected;
+        // Cumulative stats for trend
+        const monthlyAttendance = attendance.filter(a => a.status === 'Present').length;
+
+        // Financial Summary (Derived from targeted seeds)
+        const expected = fees.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0);
+        const collectedTotal = fees.reduce((sum, f) => sum + (parseFloat(f.amountPaid) || 0), 0); // Renamed to avoid conflict
+        const pending = expected - collectedTotal; // Use collectedTotal here
 
         container.innerHTML = `
             <div class="animate-fade-in">
@@ -623,10 +618,10 @@ const App = {
                     ${this.createStatCard('Monthly Attendance', monthlyAttendance, 'calendar', '#3b82f6')}
 
                     <!-- Row 3: Finance -->
-                    ${this.createStatCard('Expected Revenue', `$${expected.toFixed(2)}`, 'pie-chart', '#3b82f6')}
-                    ${this.createStatCard('Collected Fees', `$${collected.toFixed(2)}`, 'dollar-sign', '#10b981')}
+                    ${this.createStatCard('Total Collected This Month', `$${collected.toFixed(2)}`, 'dollar-sign', '#10b981')}
+                    ${this.createStatCard('Teachers Salaries', `$${totalSalaries.toFixed(2)}`, 'briefcase', '#3b82f6')}
                     ${this.createStatCard('Pending Dues', `$${pending.toFixed(2)}`, 'alert-circle', '#ef4444')}
-                    ${this.createStatCard('Paid Salaries', `$${totalSalaries.toFixed(2)}`, 'briefcase', '#6366f1')}
+                    ${this.createStatCard('Expected Revenue', `$${expected.toFixed(2)}`, 'pie-chart', '#6366f1')}
                 </div>
 
                 <div class="row mt-4">
@@ -1000,41 +995,72 @@ const App = {
         feather.replace();
     },
 
-    openExamsGrade(grade) {
-        this.state.currentExamsGrade = grade;
+    renderExams(container) {
+        if (!this.state.currentExamsForm) {
+            return this.renderExamsForms(container);
+        }
+        if (!this.state.currentExamsSection) {
+            return this.renderExamsSections(container);
+        }
+        return this.renderExamsMarkEntry(container);
+    },
+
+    renderExamsForms(container) {
+        const forms = ["Form 1", "Form 2", "Form 3", "Form 4"];
+        container.innerHTML = `
+            <div class="animate-fade-in">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold" style="color: var(--color-primary-text);">Exam Management</h2>
+                    <p class="text-secondary-text">Select a form to enter or edit marks</p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
+                    ${forms.map(form => `
+                        <div onclick="App.openExamsForm('${form}')" class="glass-card p-8 cursor-pointer text-center hover-scale">
+                            <div style="width: 64px; height: 64px; background: #eff6ff; color: #3b82f6; border-radius: 16px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i data-feather="book-open" style="width: 32px; height: 32px;"></i>
+                            </div>
+                            <h3 class="text-xl font-bold">${form}</h3>
+                            <p class="text-secondary-text mt-2">Click to view sections</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        feather.replace();
+    },
+
+    openExamsForm(form) {
+        this.state.currentExamsForm = form;
         this.refreshCurrentView();
     },
 
     renderExamsSections(container) {
-        const grade = this.state.currentExamsGrade;
-        const sections = ["A", "B"];
+        const form = this.state.currentExamsForm;
+        const sections = ["A", "B", "C"];
         const students = Store.getStudents();
+
         container.innerHTML = `
-            <div style="">
-                <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <button onclick="App.closeExamsGrade()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
-                        <div>
-                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${grade} Sections</h2>
-                            <p style="color: #6b7280; font-size: 0.85rem;">Select a section.</p>
-                        </div>
+            <div class="animate-fade-in">
+                <div class="flex items-center gap-4 mb-6">
+                    <button onclick="App.closeExamsForm()" class="btn glass-card p-2"><i data-feather="arrow-left"></i></button>
+                    <div>
+                        <h2 class="text-2xl font-bold">${form} Sections</h2>
+                        <p class="text-secondary-text">Select a section to manage marks</p>
                     </div>
-                    <span style="background: #eff6ff; color: #3b82f6; font-weight: 700; padding: 6px 16px; border-radius: 99px; font-size: 0.875rem; border: 1px solid #bfdbfe;">
-                        Total Sections: ${sections.length}
-                    </span>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
                     ${sections.map(sec => {
-            const count = students.filter(s => s.grade === grade && s.section === sec).length;
+            const count = students.filter(s => s.grade === form && s.section === sec).length;
             return `
-                        <div onclick="App.openExamsSection('${sec}')" class="glass-card" style="padding: 2rem; cursor: pointer; text-align: center; border: 1px solid #f3f4f6;">
-                             <div style="width: 54px; height: 54px; background: #eff6ff; color: #3b82f6; border-radius: 12px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
-                                <i data-feather="users"></i>
+                            <div onclick="App.openExamsSection('${sec}')" class="glass-card p-8 cursor-pointer text-center hover-scale">
+                                <div style="width: 64px; height: 64px; background: #eff6ff; color: #3b82f6; border-radius: 16px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
+                                    <i data-feather="users" style="width: 32px; height: 32px;"></i>
+                                </div>
+                                <h3 class="text-xl font-bold">Section ${sec}</h3>
+                                <p class="text-secondary-text mt-2">${count} Students</p>
                             </div>
-                            <h4 style="font-weight: 700; color: #111827;">Section ${sec}</h4>
-                            <p style="color: #6b7280; font-size: 0.75rem; margin-top: 0.25rem;">${count} Students</p>
-                        </div>
-                    `}).join('')}
+                        `;
+        }).join('')}
                 </div>
             </div>
         `;
@@ -1046,111 +1072,59 @@ const App = {
         this.refreshCurrentView();
     },
 
-    closeExamsGrade() {
-        this.state.currentExamsGrade = null;
+    closeExamsForm() {
+        this.state.currentExamsForm = null;
         this.refreshCurrentView();
     },
 
-    renderExamsSubjects(container) {
-        const subjects = [
-            "Mathematics", "Physics", "Chemistry", "Biology", "English", "Somali", "Arabic",
-            "Islamic Studies", "Geography", "History", "ICT", "Business Studies", "Physical Education"
-        ];
-        container.innerHTML = `
-            <div style="">
-                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
-                    <button onclick="App.closeExamsSection()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
-                    <div>
-                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Select Subject</h2>
-                        <p style="color: #6b7280; font-size: 0.85rem;">${this.state.currentExamsGrade} - Section ${this.state.currentExamsSection}</p>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
-                    ${subjects.map(sub => `
-                        <div onclick="App.openExamsSubject('${sub}')" class="glass-card" style="padding: 1.25rem; cursor: pointer; text-align: center; border: 1px solid #f3f4f6; transition: transform 0.2s;">
-                            <h4 style="font-weight: 600; color: #374151; font-size: 0.9rem;">${sub}</h4>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-        feather.replace();
-    },
-
-    openExamsSubject(sub) {
-        console.log('📖 Opening subject:', sub);
-        this.state.currentExamsSubject = sub;
-        this.refreshCurrentView();
-    },
-
-    closeExamsSection() {
-        this.state.currentExamsSection = null;
-        this.refreshCurrentView();
-    },
-
-    renderExamRecording(container) {
-        const grade = this.state.currentExamsGrade;
+    renderExamsMarkEntry(container) {
+        const form = this.state.currentExamsForm;
         const section = this.state.currentExamsSection;
-        const subject = this.state.currentExamsSubject;
-        const term = this.state.currentExamsTerm;
-
-        const students = Store.getStudents()
-            .filter(s => s.grade === grade && s.section === section)
-            .sort((a, b) => {
-                const nameA = a.fullName || '';
-                const nameB = b.fullName || '';
-                return nameA.localeCompare(nameB);
-            });
-
-        const existingRecords = Store.getExamRecords(grade, section, subject, term);
+        const students = Store.getStudents().filter(s => s.grade === form && s.section === section);
+        const subjects = ["Math", "English", "History", "Physics", "Arabic", "Tarbiya", "IT", "Af-Somali", "Chemistry", "Geography", "Biology"];
 
         container.innerHTML = `
-            <div style="">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <button onclick="App.closeExamsSubject()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
+            <div class="animate-fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-4">
+                        <button onclick="App.closeExamsSection()" class="btn glass-card p-2"><i data-feather="arrow-left"></i></button>
                         <div>
-                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${subject} Scores</h2>
-                            <p style="color: #6b7280; font-size: 0.85rem;">${grade} - Section ${section} | ${term}</p>
+                            <h2 class="text-2xl font-bold">${form} - Section ${section}</h2>
+                            <p class="text-secondary-text">Enter marks for all 11 subjects</p>
                         </div>
                     </div>
-                     <div style="display: flex; gap: 1rem; align-items: center;">
-                        <button class="btn glass-card" onclick="App.exportExamScoresExcel()" style="color: #059669; border: 1px solid #10b981; padding: 0.6rem 1rem;">
-                            <i data-feather="download" style="width: 14px;"></i> Export
-                        </button>
-                        <select onchange="App.changeExamsTerm(this.value)" class="form-input" style="width: auto; padding: 0.5rem 2rem 0.5rem 1rem;">
-                            <option value="Midterm" ${term === 'Midterm' ? 'selected' : ''}>Midterm</option>
-                            <option value="Final" ${term === 'Final' ? 'selected' : ''}>Final</option>
-                        </select>
-                        <button onclick="App.saveAllScores()" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Save All Changes</button>
-                    </div>
+                    <button onclick="App.saveAllExamMarks()" class="btn btn-primary" style="background:#059669; border:none;">
+                        <i data-feather="save"></i> Save All Marks
+                    </button>
                 </div>
 
-                <div class="glass-card" style="padding: 0; overflow: hidden; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.03); background: white;">
-                    <table class="table" style="margin: 0;">
-                        <thead style="background: #f9fafb;">
-                            <tr>
-                                <th style="padding: 1rem 1.5rem; text-align: left; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; width: 50px;">#</th>
-                                <th style="padding: 1rem 1.5rem; text-align: left; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Student Name</th>
-                                <th style="padding: 1rem 1.5rem; text-align: center; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; width: 150px;">Score (0-100)</th>
+                <div class="glass-card" style="padding: 0; overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                    <table class="table" style="min-width: 1200px; margin: 0;">
+                        <thead>
+                            <tr style="background: #f9fafb;">
+                                <th style="padding: 1rem; width: 50px;">#</th>
+                                <th style="padding: 1rem; width: 250px; text-align: left;">Student Name</th>
+                                ${subjects.map(sub => `<th style="padding: 1rem; text-align: center; font-size: 0.75rem;">${sub}</th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>
                             ${students.map((s, idx) => {
-            const record = existingRecords.find(r => r.studentId === s.id);
-            const score = record ? record.score : '';
+            const entry = Store.getExamMarks(s.id);
             return `
                                     <tr style="border-bottom: 1px solid #f3f4f6;">
-                                        <td style="padding: 1rem 1.5rem; font-weight: 600; color: #6b7280;">${idx + 1}</td>
-                                        <td style="padding: 1rem 1.5rem; font-weight: 500; color: #111827;">${s.fullName}</td>
-                                        <td style="padding: 1rem 1.5rem; text-align: center;">
-                                            <input type="number" 
-                                                   data-student-id="${s.id}" 
-                                                   class="form-input exam-score-input" 
-                                                   value="${score}" 
-                                                   min="0" max="100" 
-                                                   style="text-align: center; width: 80px; margin: 0 auto; height: 38px;">
-                                        </td>
+                                        <td style="padding: 1rem; text-align: center; color: #6b7280; font-weight: 600;">${idx + 1}</td>
+                                        <td style="padding: 1rem; font-weight: 500; color: #111827;">${s.fullName}</td>
+                                        ${subjects.map(sub => `
+                                            <td style="padding: 0.5rem; text-align: center;">
+                                                <input type="number" 
+                                                       class="form-input exam-input" 
+                                                       data-student-id="${s.id}" 
+                                                       data-subject="${sub}"
+                                                       value="${entry.marks[sub] || ''}" 
+                                                       style="width: 60px; text-align: center; padding: 0.4rem; font-size: 0.875rem;"
+                                                       min="0" max="100">
+                                            </td>
+                                        `).join('')}
                                     </tr>
                                 `;
         }).join('')}
@@ -1162,8 +1136,28 @@ const App = {
         feather.replace();
     },
 
+    saveAllExamMarks() {
+        const inputs = document.querySelectorAll('.exam-input');
+        const groupedMarks = {};
+
+        inputs.forEach(input => {
+            const studentId = input.dataset.studentId;
+            const subject = input.dataset.subject;
+            const value = input.value;
+
+            if (!groupedMarks[studentId]) groupedMarks[studentId] = {};
+            groupedMarks[studentId][subject] = value === '' ? null : parseFloat(value);
+        });
+
+        for (const [studentId, marks] of Object.entries(groupedMarks)) {
+            Store.saveExamMarks(studentId, marks);
+        }
+
+        App.showToast('✅ All marks saved successfully!');
+    },
+
     changeExamsTerm(term) {
-        this.state.currentExamsTerm = term;
+        this.state.currentExamsTerm = term || 'Midterm';
         this.refreshCurrentView();
     },
 
@@ -1172,41 +1166,9 @@ const App = {
         this.refreshCurrentView();
     },
 
-    saveAllScores() {
-        const inputs = document.querySelectorAll('.exam-score-input');
-        const scores = [];
-        const grade = this.state.currentExamsGrade;
-        const section = this.state.currentExamsSection;
-        const subject = this.state.currentExamsSubject;
-        const term = this.state.currentExamsTerm;
-
-        inputs.forEach(input => {
-            const score = input.value;
-            if (score !== '') {
-                scores.push({
-                    studentId: input.dataset.studentId,
-                    grade,
-                    section,
-                    subject,
-                    term,
-                    score: parseFloat(score)
-                });
-            }
-        });
-
-        if (scores.length > 0) {
-            Store.saveExamScores(scores);
-            this.showToast('Scores saved successfully!');
-            this.refreshCurrentView();
-        } else {
-            this.showToast('No scores entered.');
-        }
-    },
-
-    exportExamScoresExcel() {
-        const grade = this.state.currentExamsGrade;
-        const section = this.state.currentExamsSection;
-        const subject = this.state.currentExamsSubject;
+    closeExamsSection() {
+        this.state.currentExamsSection = null;
+        this.refreshCurrentView();
         const term = this.state.currentExamsTerm;
 
         const students = Store.getStudents().filter(s => s.grade === grade && s.section === section);
