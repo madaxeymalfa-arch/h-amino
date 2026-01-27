@@ -582,45 +582,50 @@ const App = {
             'parent-messages': 'Private Parent Messages',
             'exams': 'Examination Management'
         }[viewName] || 'Dashboard';
-
-        this.refreshCurrentView();
     },
 
     renderDashboard(container) {
         const students = Store.getStudents();
         const teachers = Store.getTeachers();
+        const fees = Store.getFees();
+        const attendance = Store.getAttendance();
 
-        // --- Exact Dashboard Numbers (User Specification) ---
+        // 1. Student Information (DYNAMIC)
         const totalStudents = students.length;
         const maleStudents = students.filter(s => s.gender === 'Male').length;
         const femaleStudents = students.filter(s => s.gender === 'Female').length;
-        const graduatedCount = students.filter(s => s.grade === 'Form 4').length; // Form 4 students only
+        const graduatedCount = students.filter(s => s.grade === 'Form 4').length;
 
-        // Teacher Metrics
+        // 2. Teacher & Staff (DYNAMIC)
         const totalTeachers = teachers.length;
-        const totalSalaries = 1000.00; // 4 * $250 auto-calc
+        const totalSalaries = teachers.reduce((sum, t) => sum + (t.salary || 250), 0);
 
-        // Attendance Metrics (Targets)
-        const allTotalAttendance = 120;
-        const presentToday = 96;
-        const absentToday = 15;
-        const lateToday = 9;
+        // 3. Attendance Information (DYNAMIC)
+        const todayStr = new Date().toISOString().split('T')[0];
+        const currentMonthData = new Date().toISOString().slice(0, 7);
+        const attendanceThisMonth = attendance.filter(a => a.date.startsWith(currentMonthData)).length;
+        const allTotalAttendance = attendance.length;
+        const presentToday = attendance.filter(a => a.date === todayStr && a.status === 'Present').length;
+        const absentToday = attendance.filter(a => a.date === todayStr && a.status === 'Absent').length;
 
-        // Financial Metrics (Specific targets)
-        const expectedRevenue = 2080.00;
-        const collectedRevenue = 1480.00;
-        const pendingRevenue = 600.00;
-        const totalCollectedThisMonth = 1500.00;
-        const totalPaidThisMonth = 1000.00;
+        // 4. Financial Information (DYNAMIC)
+        const currentMonthName = new Date().toLocaleString('default', { month: 'long' });
+        const totalCollectedThisMonth = fees.filter(f => f.month === currentMonthName && f.status === 'PAID').reduce((sum, f) => sum + (f.amountPaid || 0), 0);
+        const totalPaidThisMonth = totalSalaries; // Simplified: Salaries as primary expense
+
+        // Derived Metrics for collected vs pending
+        const collectedRevenue = fees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + (f.amountPaid || 0), 0);
+        const pendingRevenue = fees.filter(f => f.status === 'UNPAID').reduce((sum, f) => sum + (f.amount || 20), 0);
+        const expectedRevenue = collectedRevenue + pendingRevenue;
 
         container.innerHTML = `
             <div class="animate-fade-in" style="max-width: 1400px; margin: 0 auto; padding: 1rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                    <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Dashboard</h1>
+                    <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Dashboard Overview</h1>
                 </div>
 
-                <!-- STUDENT INFORMATION -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Student Information</p>
+                <!-- 1. STUDENT INFORMATION -->
+                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">1. Student Information</p>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
                     ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
                     ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
@@ -628,24 +633,24 @@ const App = {
                     ${this.createStatCard('Graduated Students', graduatedCount, 'award', '#f59e0b')}
                 </div>
 
-                <!-- TEACHER & STAFF -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Teacher & Staff</p>
+                <!-- 2. TEACHER & STAFF -->
+                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">2. Teacher & Staff</p>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
                     ${this.createStatCard('Total Teachers', totalTeachers, 'briefcase', '#10b981')}
                     ${this.createStatCard('Total Teachers & Staff Salaries', `$${totalSalaries.toFixed(2)}`, 'dollar-sign', '#ef4444')}
                 </div>
 
-                <!-- ATTENDANCE INFORMATION -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Attendance Information</p>
+                <!-- 3. ATTENDANCE INFORMATION -->
+                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">3. Attendance Information</p>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
+                    ${this.createStatCard('Attendance Records (Month)', attendanceThisMonth, 'calendar', '#6366f1')}
                     ${this.createStatCard('All Total Attendance', allTotalAttendance, 'box', '#6366f1')}
                     ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
                     ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
-                    ${this.createStatCard('Late Students', lateToday, 'clock', '#f59e0b')}
                 </div>
 
-                <!-- FINANCIAL INFORMATION -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Financial Information</p>
+                <!-- 4. FINANCIAL INFORMATION -->
+                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">4. Financial Information</p>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
                     <div class="stat-card">
                         <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Total Collected This Month</p>
@@ -672,8 +677,17 @@ const App = {
                 <div class="row">
                     <div class="col-md-12" style="margin-top: 2rem;">
                         <div class="card glass-card" style="padding: 1.5rem;">
-                            <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h3>
-                            <canvas id="attendanceChart"></canvas>
+                            <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">5. Charts & Reports Section</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                                <div>
+                                    <h4 style="font-size:0.85rem; color:#6b7280; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h4>
+                                    <canvas id="attendanceChart" style="height: 250px;"></canvas>
+                                </div>
+                                <div>
+                                    <h4 style="font-size:0.85rem; color:#6b7280; margin-bottom:1rem;">Fee Collection (Last 6 Months)</h4>
+                                    <canvas id="revenueChart" style="height: 250px;"></canvas>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
