@@ -33,7 +33,9 @@ const Store = {
             { email: 'accounts@alhudaschool.edu', role: 'fees', name: 'Accounts Officer' }
         ],
         examMarks: [],
-        dataVersion: 20,
+        academicYears: ["2024-2025"],
+        currentYear: "2024-2025",
+        dataVersion: 22,
         lastUpdated: Date.now()
     },
 
@@ -57,10 +59,10 @@ const Store = {
             });
         }
 
-        if (this.state.students.length !== 120 || this.state.dataVersion < 20) {
-            console.log('🔄 Refreshing system to match user dashboard requirements (120 students - v20)...');
+        if (this.state.students.length !== 120 || this.state.dataVersion < 22) {
+            console.log('🔄 Refreshing system to match user dashboard requirements (120 students - v22)...');
             this.seedData();
-            this.state.dataVersion = 20;
+            this.state.dataVersion = 22;
             this.saveToStorage();
         }
     },
@@ -759,7 +761,7 @@ const Store = {
         const stored = localStorage.getItem('dugsiga_data');
         if (stored) {
             const parsed = JSON.parse(stored);
-            if (parsed.dataVersion < 20) {
+            if (parsed.dataVersion < 22) {
                 this.seedData();
             } else {
                 this.state = parsed;
@@ -775,9 +777,9 @@ const Store = {
     },
 
     runMigrations() {
-        if (this.state.dataVersion < 20) {
+        if (this.state.dataVersion < 22) {
             this.seedData();
-            this.state.dataVersion = 20;
+            this.state.dataVersion = 22;
             this.saveToStorage();
         }
     },

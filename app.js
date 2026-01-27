@@ -574,14 +574,16 @@ const App = {
         const attendance = Store.getAttendance();
         const fees = Store.getFees();
 
-        // Calculations
+        // Target Metrics
+        const expectedRevenue = 2000;
+        const collectedRevenue = 1500;
+        const pendingDues = 500;
+        const totalCollectedThisMonth = 1200;
+        const totalPaidThisMonth = 1000;
+
         const totalStudents = students.length;
         const maleStudents = students.filter(s => s.gender === 'Male').length;
         const femaleStudents = students.filter(s => s.gender === 'Female').length;
-        const graduated = students.filter(s => s.status === 'Graduated').length;
-        const activeStudents = students.filter(s => s.status === 'Active').length;
-
-        const totalSalaries = teachers.reduce((sum, t) => sum + (parseFloat(t.salary) || 0), 0);
 
         const today = new Date().toISOString().split('T')[0];
         const todayAtt = attendance.filter(a => a.date === today);
@@ -589,41 +591,42 @@ const App = {
         const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
         const lateToday = todayAtt.filter(a => a.status === 'Late').length;
 
-        const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-        const monthlyFees = fees.filter(f => f.month === currentMonth);
-        const collectedThisMonth = monthlyFees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + (parseFloat(f.amountPaid) || 0), 0);
-
-        // Exact target metrics for user:
-        // Expected: $2000, Collected: $1500 (Total), Pending: $500, This Month: $1200, Salaries: $1000
-        const expectedRevenue = 2000;
-        const totalCollected = fees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + (parseFloat(f.amountPaid) || 0), 0);
-        const pendingRevenue = expectedRevenue - totalCollected;
-
         container.innerHTML = `
             <div class="animate-fade-in">
-                <h2 style="font-size:1.5rem; font-weight:bold; color:var(--color-primary-text); margin-bottom:1.5rem;">System Overview</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <div>
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">System Overview</h2>
+                        <p style="color: #6b7280; font-size: 0.85rem;">Live insights for Al-Huda School System</p>
+                    </div>
+                </div>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
-                    <!-- Row 1: Students -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
-                    ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
-                    ${this.createStatCard('Female Students', femaleStudents, 'heart', '#ec4899')}
-                    ${this.createStatCard('Graduated Students', graduated, 'award', '#8b5cf6')}
-
-                    <!-- Row 2: Attendance -->
-                    ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
-                    ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
-                    ${this.createStatCard('Late Today', lateToday, 'clock', '#f59e0b')}
-                    ${this.createStatCard('Staff Total', teachers.length, 'user-check', '#6366f1')}
-
-                    <!-- Row 3: Finance -->
-                    ${this.createStatCard('Total Collected This Month', `$${collectedThisMonth.toFixed(2)}`, 'dollar-sign', '#10b981')}
-                    ${this.createStatCard('Teachers Salaries', `$${totalSalaries.toFixed(2)}`, 'briefcase', '#3b82f6')}
-                    ${this.createStatCard('Pending Dues', `$${pendingRevenue.toFixed(2)}`, 'alert-circle', '#ef4444')}
-                    ${this.createStatCard('Expected Revenue', `$${expectedRevenue.toFixed(2)}`, 'pie-chart', '#6366f1')}
+                    ${this.createStatCard('Expected Revenue', `$${expectedRevenue.toLocaleString()}`, 'trending-up', '#6366f1')}
+                    ${this.createStatCard('Collected Revenue', `$${collectedRevenue.toLocaleString()}`, 'check-circle', '#10b981')}
+                    ${this.createStatCard('Pending Dues', `$${pendingDues.toLocaleString()}`, 'alert-circle', '#ef4444')}
                 </div>
 
-                <div class="row mt-4">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
+                     <div class="stat-card" style="border-left: 4px solid #10b981;">
+                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Collected (This Month)</p>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${totalCollectedThisMonth.toLocaleString()}</h3>
+                    </div>
+                    <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Total Paid (Teachers)</p>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${totalPaidThisMonth.toLocaleString()}</h3>
+                    </div>
+                    <div class="stat-card">
+                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Present Today</p>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#10b981;">${presentToday}</h3>
+                    </div>
+                    <div class="stat-card">
+                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Late Today</p>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#f59e0b;">${lateToday}</h3>
+                    </div>
+                </div>
+
+                <div class="row">
                     <div class="col-md-8">
                         <div class="card glass-card">
                             <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h3>
@@ -632,8 +635,10 @@ const App = {
                     </div>
                     <div class="col-md-4">
                         <div class="card glass-card">
-                            <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Fee Collection</h3>
-                            <canvas id="revenueChart"></canvas>
+                            <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Gender Distribution</h3>
+                            <div style="height: 250px; position: relative;">
+                                <canvas id="genderChart"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1840,7 +1845,12 @@ const App = {
                                             <td><span class="badge badge-success">${s.status || 'Active'}</span></td>
                                             <td style="text-align: right;">
                                                 <div style="display: flex; gap: 6px; justify-content: flex-end;">
-                                                    ${editBtn}
+                                                    <button class="btn btn-edit" onclick="App.openEditStudentModal('${s.id}')" title="Edit">
+                                                        <i data-feather="edit-2" style="width: 14px; height: 14px;"></i> Edit
+                                                    </button>
+                                                    <button class="btn btn-delete" onclick="if(confirm('Delete this student?')) { Store.deleteStudent('${s.id}'); App.refreshCurrentView(); }" title="Delete">
+                                                        <i data-feather="trash-2" style="width: 14px; height: 14px;"></i> Delete
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
