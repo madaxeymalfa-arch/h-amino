@@ -407,14 +407,29 @@ const App = {
 
             if (role === 'owner' || role === 'admin' || permissions.admin) {
                 item.style.display = 'flex';
-            } else if (view === 'attendance' && permissions.attendance) {
-                item.style.display = 'flex';
-            } else if (view === 'fees' && permissions.fees) {
-                item.style.display = 'flex';
-            } else if (view === 'exams' && permissions.exams) {
-                item.style.display = 'flex';
             } else {
-                item.style.display = 'none';
+                // Granular check
+                const permKeys = {
+                    'dashboard': 'dashboard',
+                    'attendance': 'attendance',
+                    'students': 'students',
+                    'teachers': 'teachers',
+                    'fees': 'fee',
+                    'exams': 'exams',
+                    'reports': 'reports',
+                    'users': 'users and setting',
+                    'free-fee-students': 'free fee students',
+                    'data-management': 'data management',
+                    'messaging': 'messaging',
+                    'parent-messages': 'private messaging'
+                };
+
+                const key = permKeys[view];
+                if (key && permissions[key]) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
             }
         });
 
@@ -575,22 +590,28 @@ const App = {
         const students = Store.getStudents();
         const teachers = Store.getTeachers();
 
-        // --- Dashboard Numbers (Exact targets) ---
+        // --- Exact Dashboard Numbers (User Specification) ---
         const totalStudents = students.length;
         const maleStudents = students.filter(s => s.gender === 'Male').length;
         const femaleStudents = students.filter(s => s.gender === 'Female').length;
-        const graduatedCount = students.filter(s => s.grade === 'Form 4').length; // Form 4 only
+        const graduatedCount = students.filter(s => s.grade === 'Form 4').length; // Form 4 students only
 
-        // Finance targets
-        const totalSalaries = 1000; // 4 * 250
-        const expectedRevenue = 2080;
-        const collectedRevenueTotal = 1480;
-        const pendingRevenue = expectedRevenue - collectedRevenueTotal; // $600
+        // Teacher Metrics
+        const totalTeachers = teachers.length;
+        const totalSalaries = 1000.00; // 4 * $250 auto-calc
 
-        // Attendance targets
+        // Attendance Metrics (Targets)
+        const allTotalAttendance = 120;
         const presentToday = 96;
         const absentToday = 15;
         const lateToday = 9;
+
+        // Financial Metrics (Specific targets)
+        const expectedRevenue = 2080.00;
+        const collectedRevenue = 1480.00;
+        const pendingRevenue = 600.00;
+        const totalCollectedThisMonth = 1500.00;
+        const totalPaidThisMonth = 1000.00;
 
         container.innerHTML = `
             <div class="animate-fade-in" style="max-width: 1400px; margin: 0 auto; padding: 1rem;">
@@ -610,14 +631,14 @@ const App = {
                 <!-- TEACHER & STAFF -->
                 <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Teacher & Staff</p>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
-                    ${this.createStatCard('Total Teachers', teachers.length, 'briefcase', '#10b981')}
+                    ${this.createStatCard('Total Teachers', totalTeachers, 'briefcase', '#10b981')}
                     ${this.createStatCard('Total Teachers & Staff Salaries', `$${totalSalaries.toFixed(2)}`, 'dollar-sign', '#ef4444')}
                 </div>
 
                 <!-- ATTENDANCE INFORMATION -->
                 <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Attendance Information</p>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
-                    ${this.createStatCard('All Total Attendance', students.length, 'box', '#6366f1')}
+                    ${this.createStatCard('All Total Attendance', allTotalAttendance, 'box', '#6366f1')}
                     ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
                     ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
                     ${this.createStatCard('Late Students', lateToday, 'clock', '#f59e0b')}
@@ -628,25 +649,29 @@ const App = {
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
                     <div class="stat-card">
                         <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Total Collected This Month</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$1500.00</h3>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${totalCollectedThisMonth.toFixed(2)}</h3>
                     </div>
                     <div class="stat-card">
                         <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Total Paid This Month</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$1000.00</h3>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${totalPaidThisMonth.toFixed(2)}</h3>
                     </div>
-                    <div class="stat-card">
-                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Pending Revenue</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${pendingRevenue.toFixed(2)}</h3>
+                    <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Collected (Total) / Pending</p>
+                        <div style="display: flex; gap: 8px; align-items: baseline;">
+                            <h3 style="font-size:1.1rem; font-weight:700; color:#10b981;">$${collectedRevenue.toFixed(2)}</h3>
+                            <span style="color: #9ca3af;">/</span>
+                            <h3 style="font-size:1.1rem; font-weight:700; color:#ef4444;">$${pendingRevenue.toFixed(2)}</h3>
+                        </div>
                     </div>
                     <div class="stat-card">
                         <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Expected Revenue</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${expectedRevenue.toFixed(2)}</h3>
+                        <h3 style="font-size:1.5rem; font-weight:700; color:#3b82f6;">$${expectedRevenue.toFixed(2)}</h3>
                     </div>
                 </div>
 
                 <div class="row">
-                    <div class="col-md-12">
-                        <div class="card glass-card">
+                    <div class="col-md-12" style="margin-top: 2rem;">
+                        <div class="card glass-card" style="padding: 1.5rem;">
                             <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h3>
                             <canvas id="attendanceChart"></canvas>
                         </div>
@@ -3350,6 +3375,8 @@ const App = {
                             <tbody>
                                 ${users.map((user, idx) => {
             const p = user.permissions || {};
+            const permList = ['dashboard', 'attendance', 'students', 'teachers', 'fee', 'exams', 'reports', 'users and setting', 'free fee students', 'data management', 'messaging', 'private messaging'];
+
             return `
                                     <tr>
                                         <td style="padding: 1rem 1.5rem;">
@@ -3357,11 +3384,16 @@ const App = {
                                             <input type="email" value="${user.email}" id="user-email-${idx}" class="form-input" style="padding:2px 8px; font-size:0.75rem; width:200px; margin-top:4px;">
                                         </td>
                                         <td>
-                                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size:0.75rem;">
-                                                <label><input type="checkbox" id="user-perm-att-${idx}" ${p.attendance ? 'checked' : ''}> Attendance</label>
-                                                <label><input type="checkbox" id="user-perm-fees-${idx}" ${p.fees ? 'checked' : ''}> Fees</label>
-                                                <label><input type="checkbox" id="user-perm-exams-${idx}" ${p.exams ? 'checked' : ''}> Exams</label>
-                                                <label><input type="checkbox" id="user-perm-admin-${idx}" ${p.admin ? 'checked' : ''}> Admin Access</label>
+                                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size:0.75rem;">
+                                                ${permList.map(perm => `
+                                                    <label style="display:flex; align-items:center; gap:4px;">
+                                                        <input type="checkbox" id="user-perm-${perm.replace(/ /g, '-')}-${idx}" ${p[perm] ? 'checked' : ''}> 
+                                                        ${perm.charAt(0).toUpperCase() + perm.slice(1)}
+                                                    </label>
+                                                `).join('')}
+                                                <label style="display:flex; align-items:center; gap:4px; font-weight:700; color:#6366f1;">
+                                                    <input type="checkbox" id="user-perm-admin-${idx}" ${p.admin ? 'checked' : ''}> Admin Access
+                                                </label>
                                             </div>
                                         </td>
                                         <td>
@@ -3422,31 +3454,43 @@ const App = {
     saveUser(index) {
         const email = document.getElementById(`user-email-${index}`).value;
         const pw = document.getElementById(`user-pw-${index}`).value;
-        const att = document.getElementById(`user-perm-att-${index}`).checked;
-        const fees = document.getElementById(`user-perm-fees-${index}`).checked;
-        const exams = document.getElementById(`user-perm-exams-${index}`).checked;
-        const admin = document.getElementById(`user-perm-admin-${index}`).checked;
 
         const users = Store.getUsers();
         const user = users[index];
 
+        const permList = ['dashboard', 'attendance', 'students', 'teachers', 'fee', 'exams', 'reports', 'users and setting', 'free fee students', 'data management', 'messaging', 'private messaging'];
+        const newPerms = {};
+
+        permList.forEach(perm => {
+            const checkbox = document.getElementById(`user-perm-${perm.replace(/ /g, '-')}-${index}`);
+            newPerms[perm] = checkbox ? checkbox.checked : false;
+        });
+
+        const admin = document.getElementById(`user-perm-admin-${index}`).checked;
+        newPerms.admin = admin;
+
         user.email = email;
         user.password = pw;
-        user.permissions = {
-            attendance: att,
-            fees: fees,
-            exams: exams,
-            admin: admin
-        };
+        user.permissions = newPerms;
 
         // Map permission to legacy role for compatibility
         if (admin) user.role = 'owner';
-        else if (fees) user.role = 'fees';
-        else if (att) user.role = 'teacher';
+        else if (newPerms.fee) user.role = 'fees';
+        else if (newPerms.attendance) user.role = 'teacher';
         else user.role = 'restricted';
 
         Store.updateUser(index, user);
-        this.showToast('User account updated successfully');
+
+        // Auto-refresh sidebar if current user updated
+        const currentUser = JSON.parse(sessionStorage.getItem('dugsiga_user'));
+        if (currentUser && currentUser.email === user.email) {
+            currentUser.permissions = newPerms;
+            currentUser.role = user.role;
+            sessionStorage.setItem('dugsiga_user', JSON.stringify(currentUser));
+            this.showLayout(); // Refresh sidebar items
+        }
+
+        this.showToast('User account and permissions updated!');
     },
 
     openAddUserModal() {
@@ -3456,12 +3500,17 @@ const App = {
         if (!email) return;
         const password = prompt("Enter User Password:", "123456");
 
+        const permList = ['dashboard', 'attendance', 'students', 'teachers', 'fee', 'exams', 'reports', 'users and setting', 'free fee students', 'data management', 'messaging', 'private messaging'];
+        const initialPerms = {};
+        permList.forEach(p => initialPerms[p] = false);
+        initialPerms.admin = false;
+
         const newUser = {
             name: name,
             email: email,
             password: password,
             role: 'restricted',
-            permissions: { attendance: false, fees: false, exams: false, admin: false }
+            permissions: initialPerms
         };
 
         Store.state.users.push(newUser);

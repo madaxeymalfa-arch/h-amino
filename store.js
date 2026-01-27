@@ -35,7 +35,7 @@ const Store = {
         examMarks: [],
         academicYears: ["2024-2025"],
         currentYear: "2024-2025",
-        dataVersion: 23,
+        dataVersion: 25,
         lastUpdated: Date.now()
     },
 
@@ -59,10 +59,10 @@ const Store = {
             });
         }
 
-        if (this.state.students.length !== 120 || this.state.dataVersion < 23) {
-            console.log('🔄 Refreshing system to match user dashboard requirements (V23)...');
+        if (this.state.students.length !== 120 || this.state.dataVersion < 25) {
+            console.log('🔄 Refreshing system to match user dashboard requirements (V25)...');
             this.seedData();
-            this.state.dataVersion = 23;
+            this.state.dataVersion = 25;
             this.saveToStorage();
         }
     },
