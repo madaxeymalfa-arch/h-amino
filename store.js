@@ -27,15 +27,15 @@ const Store = {
         // Role-based access now uses Firestore document lookups.
         // USER ROLE MAPPING (Passwords removed for security)
         users: [
-            { email: 'director@alhudaschool.edu', role: 'owner', name: 'Director' },
-            { email: 'principal@alhudaschool.edu', role: 'principal', name: 'Principal' },
-            { email: 'teacher@alhudaschool.edu', role: 'teacher', name: 'Teacher' },
-            { email: 'accounts@alhudaschool.edu', role: 'fees', name: 'Accounts Officer' }
+            { email: 'director@alhudaschool.edu', role: 'owner', name: 'Director', permissions: { admin: true } },
+            { email: 'principal@alhudaschool.edu', role: 'principal', name: 'Principal', permissions: { admin: true } },
+            { email: 'teacher@alhudaschool.edu', role: 'teacher', name: 'Teacher', permissions: { attendance: true } },
+            { email: 'accounts@alhudaschool.edu', role: 'fees', name: 'Accounts Officer', permissions: { fees: true } }
         ],
         examMarks: [],
         academicYears: ["2024-2025"],
         currentYear: "2024-2025",
-        dataVersion: 22,
+        dataVersion: 23,
         lastUpdated: Date.now()
     },
 
@@ -59,10 +59,10 @@ const Store = {
             });
         }
 
-        if (this.state.students.length !== 120 || this.state.dataVersion < 22) {
-            console.log('🔄 Refreshing system to match user dashboard requirements (120 students - v22)...');
+        if (this.state.students.length !== 120 || this.state.dataVersion < 23) {
+            console.log('🔄 Refreshing system to match user dashboard requirements (V23)...');
             this.seedData();
-            this.state.dataVersion = 22;
+            this.state.dataVersion = 23;
             this.saveToStorage();
         }
     },
@@ -92,8 +92,10 @@ const Store = {
         const stored = localStorage.getItem('dugsiga_data');
         if (stored) {
             const parsed = JSON.parse(stored);
-            // Overwrite stored users with current hard-coded list (Source of Truth for Roles)
-            parsed.users = this.state.users;
+            // ONLY merge users if them don't exist in the stored data, to preserve newly created users
+            if (!parsed.users || parsed.users.length === 0) {
+                parsed.users = this.state.users;
+            }
             this.state = parsed;
             this.runMigrations(); // Fix existing data
         }
@@ -153,27 +155,26 @@ const Store = {
 
         // Set up real-time listener
         this.unsubscribe = docRef.onSnapshot((doc) => {
-            if (doc.exists) {
+            if (!doc.exists) {
+                console.log('☁️ Creating initial Cloud Master record...');
+                this.syncToCloud();
+                return;
+            }
+
+            // Sync Logic: If it's a remote update (not from us), always sync down if timestamp is different
+            if (!doc.metadata.hasPendingWrites) {
                 const cloudData = doc.data();
                 const cloudTime = cloudData.lastUpdated || 0;
                 const localTime = this.state.lastUpdated || 0;
 
-                // Sync Logic: Newer Timestamp ALWAYS Wins
-                if (cloudTime > localTime) {
-                    console.log('✅ Newer data found in Cloud (at ' + new Date(cloudTime).toLocaleTimeString() + '). Syncing down...');
+                if (cloudTime !== localTime) {
+                    console.log('✅ Remote data received (Time: ' + new Date(cloudTime).toLocaleTimeString() + '). Syncing down...');
                     this.state = { ...this.state, ...cloudData };
                     localStorage.setItem('dugsiga_data', JSON.stringify(this.state));
                     window.dispatchEvent(new CustomEvent('state-updated'));
-                } else if (cloudTime < localTime && localTime > 1) {
-                    console.log('⬆️ Local data is newer (' + new Date(localTime).toLocaleTimeString() + '). Pushing to Cloud...');
-                    this.syncToCloud();
                 }
-                this.updateSyncStatus('synced');
-            } else {
-                // First time setup for this specific user account
-                console.log('☁️ Creating initial Cloud Master record for this account...');
-                this.syncToCloud();
             }
+            this.updateSyncStatus('synced');
         }, (error) => {
             console.error('❌ Sync error:', error);
             if (error.code === 'permission-denied') {
@@ -580,19 +581,21 @@ const Store = {
         let idCounter = 1000;
         let freeCount = 0;
 
+        // Seed Exactly 120 Students with specific Free distribution
+        const freeTarget = { "Form 1": 4, "Form 2": 3, "Form 3": 5, "Form 4": 4 };
+        const currentFreeCount = { "Form 1": 0, "Form 2": 0, "Form 3": 0, "Form 4": 0 };
+
         GRADES.forEach(grade => {
             SECTIONS.forEach(section => {
                 for (let i = 0; i < 15; i++) {
                     const fname = firstNames[Math.floor(Math.random() * firstNames.length)];
                     const lname = lastNames[Math.floor(Math.random() * lastNames.length)];
-
                     let gender = (this.state.students.length % 2 === 0) ? 'Male' : 'Female';
 
-                    // Controlled free students (20 total out of 120)
                     let isFree = false;
-                    if (freeCount < 20 && Math.random() > 0.8) {
+                    if (currentFreeCount[grade] < freeTarget[grade]) {
                         isFree = true;
-                        freeCount++;
+                        currentFreeCount[grade]++;
                     }
 
                     const student = {
@@ -616,18 +619,16 @@ const Store = {
 
         // Seed Exactly 4 Teachers ($250 each = $1000 total)
         const teacherData = [
-            { name: "Mr. Abdi Mohamed", gender: "Male" },
-            { name: "Ms. Aisha Farah", gender: "Female" },
-            { name: "Mr. Omar Ali", gender: "Male" },
-            { name: "Ms. Khadija Gedi", gender: "Female" }
+            { id: "TCH-001", name: "Mr. Abdi Mohamed", gender: "Male" },
+            { id: "TCH-002", name: "Ms. Aisha Farah", gender: "Female" },
+            { id: "TCH-003", name: "Mr. Omar Ali", gender: "Male" },
+            { id: "TCH-004", name: "Ms. Khadija Gedi", gender: "Female" }
         ];
 
-        teacherData.forEach((t, i) => {
+        teacherData.forEach(t => {
             this.state.teachers.push({
-                id: `TCH-00${i + 1}`,
-                name: t.name,
-                phone: `615-20000${i + 1}`,
-                gender: t.gender,
+                ...t,
+                phone: `615-20000${t.id.slice(-1)}`,
                 salary: 250.00,
                 subject: 'General'
             });
@@ -635,41 +636,26 @@ const Store = {
 
         // Seed Attendance (96 Present, 15 Absent, 9 Late)
         const todayStr = new Date().toISOString().split('T')[0];
-        this.state.students.forEach((s, idx) => {
+        let attIdx = 0;
+        this.state.students.forEach((s) => {
             let status = 'Present';
-            if (idx < 96) status = 'Present';
-            else if (idx < 111) status = 'Absent';
+            if (attIdx < 96) status = 'Present';
+            else if (attIdx < 111) status = 'Absent';
             else status = 'Late';
+            attIdx++;
 
-            this.state.attendance.push({ studentId: s.id, date: todayStr, status: status });
+            this.state.attendance.push({ studentId: s.id, date: todayStr, status: status, year: this.state.currentYear });
         });
 
-        // Seed Fees ($2,000 Expected, $1,500 Collected, $500 Pending)
+        // Seed Fees ($2,080 Expected, $1,480 Collected)
+        // 120 total - 16 free = 104 paying students
+        // 104 * $20 = $2,080 Expected
+        // $1,480 / $20 = 74 Collected
         const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-        let payingStudents = this.state.students.filter(s => !s.isFree);
-
-        // Let's force exactly 100 paying students to hit $2,000 expected at $20/each
-        // We'll adjust the state if needed
-        if (payingStudents.length !== 100) {
-            // Adjust markers
-            let count = 0;
-            this.state.students.forEach((s, i) => {
-                if (count < 100) {
-                    s.isFree = false;
-                    count++;
-                } else {
-                    s.isFree = true;
-                }
-            });
-        }
-        payingStudents = this.state.students.filter(s => !s.isFree); // Re-filter after adjustment
-
         let paidCount = 0;
         this.state.students.forEach((s, idx) => {
             if (s.isFree) return;
-
-            // We need $1,500 collected total. At $20/student, that's 75 students.
-            const isPaid = paidCount < 75;
+            const isPaid = paidCount < 74;
             if (isPaid) paidCount++;
 
             this.state.fees.push({
@@ -761,7 +747,7 @@ const Store = {
         const stored = localStorage.getItem('dugsiga_data');
         if (stored) {
             const parsed = JSON.parse(stored);
-            if (parsed.dataVersion < 22) {
+            if (parsed.dataVersion < 23) {
                 this.seedData();
             } else {
                 this.state = parsed;
@@ -777,9 +763,9 @@ const Store = {
     },
 
     runMigrations() {
-        if (this.state.dataVersion < 22) {
+        if (this.state.dataVersion < 23) {
             this.seedData();
-            this.state.dataVersion = 22;
+            this.state.dataVersion = 23;
             this.saveToStorage();
         }
     },
