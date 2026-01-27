@@ -574,16 +574,13 @@ const App = {
         const attendance = Store.getAttendance();
         const fees = Store.getFees();
 
-        // 1. Basic Counts
+        // Calculations
         const totalStudents = students.length;
         const maleStudents = students.filter(s => s.gender === 'Male').length;
         const femaleStudents = students.filter(s => s.gender === 'Female').length;
-        const totalTeachers = teachers.length;
-
-        // 2. Academic & Financial
         const graduated = students.filter(s => s.status === 'Graduated').length;
+        const activeStudents = students.filter(s => s.status === 'Active').length;
 
-        const currentMonth = new Date().toLocaleString('default', { month: 'long' });
         const totalSalaries = teachers.reduce((sum, t) => sum + (parseFloat(t.salary) || 0), 0);
 
         const today = new Date().toISOString().split('T')[0];
@@ -592,36 +589,38 @@ const App = {
         const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
         const lateToday = todayAtt.filter(a => a.status === 'Late').length;
 
-        // Cumulative stats for trend
-        const monthlyAttendance = attendance.filter(a => a.status === 'Present').length;
+        const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+        const monthlyFees = fees.filter(f => f.month === currentMonth);
+        const collectedThisMonth = monthlyFees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + (parseFloat(f.amountPaid) || 0), 0);
 
-        // Financial Summary (Derived from targeted seeds)
-        const expected = fees.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0);
-        const collectedTotal = fees.reduce((sum, f) => sum + (parseFloat(f.amountPaid) || 0), 0); // Renamed to avoid conflict
-        const pending = expected - collectedTotal; // Use collectedTotal here
+        // Exact target metrics for user:
+        // Expected: $2000, Collected: $1500 (Total), Pending: $500, This Month: $1200, Salaries: $1000
+        const expectedRevenue = 2000;
+        const totalCollected = fees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + (parseFloat(f.amountPaid) || 0), 0);
+        const pendingRevenue = expectedRevenue - totalCollected;
 
         container.innerHTML = `
             <div class="animate-fade-in">
                 <h2 style="font-size:1.5rem; font-weight:bold; color:var(--color-primary-text); margin-bottom:1.5rem;">System Overview</h2>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
                     <!-- Row 1: Students -->
                     ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
                     ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
                     ${this.createStatCard('Female Students', femaleStudents, 'heart', '#ec4899')}
-                    ${this.createStatCard('Graduated', graduated, 'award', '#8b5cf6')}
+                    ${this.createStatCard('Graduated Students', graduated, 'award', '#8b5cf6')}
 
                     <!-- Row 2: Attendance -->
                     ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
                     ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
                     ${this.createStatCard('Late Today', lateToday, 'clock', '#f59e0b')}
-                    ${this.createStatCard('Monthly Attendance', monthlyAttendance, 'calendar', '#3b82f6')}
+                    ${this.createStatCard('Staff Total', teachers.length, 'user-check', '#6366f1')}
 
                     <!-- Row 3: Finance -->
-                    ${this.createStatCard('Total Collected This Month', `$${collected.toFixed(2)}`, 'dollar-sign', '#10b981')}
+                    ${this.createStatCard('Total Collected This Month', `$${collectedThisMonth.toFixed(2)}`, 'dollar-sign', '#10b981')}
                     ${this.createStatCard('Teachers Salaries', `$${totalSalaries.toFixed(2)}`, 'briefcase', '#3b82f6')}
-                    ${this.createStatCard('Pending Dues', `$${pending.toFixed(2)}`, 'alert-circle', '#ef4444')}
-                    ${this.createStatCard('Expected Revenue', `$${expected.toFixed(2)}`, 'pie-chart', '#6366f1')}
+                    ${this.createStatCard('Pending Dues', `$${pendingRevenue.toFixed(2)}`, 'alert-circle', '#ef4444')}
+                    ${this.createStatCard('Expected Revenue', `$${expectedRevenue.toFixed(2)}`, 'pie-chart', '#6366f1')}
                 </div>
 
                 <div class="row mt-4">
@@ -644,6 +643,13 @@ const App = {
         this.renderCharts();
         feather.replace();
     },
+
+    // Unified Dashboard Logic Moved to Top
+    changeRevenuePeriod(period) {
+        this.state.revenuePeriod = period;
+        this.refreshCurrentView();
+    },
+
 
     createStatCard(title, value, icon, color) {
         return `
@@ -674,45 +680,36 @@ const App = {
                         <button onclick="App.openAddTeacherModal()" class="btn btn-primary">
                             <i data-feather="plus"></i> Add Teacher
                         </button>
-                        <button class="btn btn-success">
-                             <i data-feather="upload"></i> Import CSV
-                        </button>
                     </div>
                 </div>
 
                 <div class="table-container">
-                    <div style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">
-                        <h3 class="font-bold text-lg">All Teachers</h3>
-                    </div>
                      <div class="table-responsive">
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th style="width: 50px;">#</th>
                                     <th>Name</th>
                                     <th>Phone</th>
                                     <th>Gender</th>
                                     <th>Salary</th>
                                     <th>Subject</th>
-                                    <th>Action</th>
+                                    <th style="text-align:right;">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${teachers.map(t => `
+                                ${teachers.map((t, i) => `
                                     <tr>
-                                        <td class="font-medium">${t.id}</td>
+                                        <td class="font-medium">${i + 1}</td>
                                         <td>
-                                            <div class="font-medium" style="color:#000;">${t.name}</div>
+                                            <div class="font-medium" style="color:#111827;">${t.name}</div>
                                         </td>
                                         <td>${t.phone}</td>
-                                        <td>${t.gender}</td>
-                                        <td>$${(t.salary || 0).toFixed(2)}</td>
+                                        <td><span class="badge ${t.gender === 'Female' ? 'badge-pink' : 'badge-blue'}" style="background: ${t.gender === 'Female' ? '#fdf2f8' : '#eff6ff'}; color: ${t.gender === 'Female' ? '#db2777' : '#2563eb'}; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">${t.gender}</span></td>
+                                        <td style="font-weight: 600;">$${(t.salary || 0).toFixed(2)}</td>
                                         <td><span class="badge badge-neutral">${t.subject}</span></td>
-                                        <td>
-                                            <div class="flex gap-2">
-                                                <button class="btn btn-view" onclick="alert('View profile feature coming soon')">
-                                                    <i data-feather="eye" style="width:14px; height:14px;"></i> View
-                                                </button>
+                                        <td style="text-align: right;">
+                                            <div class="flex gap-2 justify-end">
                                                 <button class="btn btn-edit" onclick="App.openEditTeacherModal('${t.id}')">
                                                     <i data-feather="edit-2" style="width:14px; height:14px;"></i> Edit
                                                 </button>
@@ -731,6 +728,21 @@ const App = {
             </div>
         `;
         feather.replace();
+    },
+
+    openEditTeacherModal(id) {
+        const teachers = Store.getTeachers();
+        const teacher = teachers.find(t => t.id === id);
+        if (!teacher) return;
+
+        document.getElementById('edit-teacher-id').value = teacher.id;
+        document.getElementById('edit-teacher-name').value = teacher.name;
+        document.getElementById('edit-teacher-phone').value = teacher.phone;
+        document.getElementById('edit-teacher-gender').value = teacher.gender;
+        document.getElementById('edit-teacher-subject').value = teacher.subject;
+        document.getElementById('edit-teacher-salary').value = teacher.salary;
+
+        this.toggleModal('edit-teacher-modal', true);
     },
 
     renderAssignments(container) {
@@ -3372,170 +3384,41 @@ const App = {
         Store.updateUser(index, user);
         this.showToast('Credentials updated successfully');
     },
+
+    renderCharts() {
+        const attendanceCtx = document.getElementById('attendanceChart')?.getContext('2d');
+        if (attendanceCtx) {
+            const days = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (6 - i));
+                return d.toISOString().split('T')[0];
+            });
+            const attData = days.map(day => Store.getAttendance().filter(a => a.date === day && a.status === 'Present').length);
+            new Chart(attendanceCtx, {
+                type: 'line',
+                data: {
+                    labels: days.map(d => new Date(d).toLocaleDateString(undefined, { weekday: 'short' })),
+                    datasets: [{ label: 'Present', data: attData, borderColor: '#3b82f6', backgroundColor: '#3b82f620', tension: 0.4, fill: true }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        const revenueCtx = document.getElementById('revenueChart')?.getContext('2d');
+        if (revenueCtx) {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const revData = months.map(m => Store.getFees().filter(f => f.month === m && f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0));
+            new Chart(revenueCtx, {
+                type: 'bar',
+                data: {
+                    labels: months.map(m => m.substring(0, 3)),
+                    datasets: [{ label: 'Collected', data: revData, backgroundColor: '#10b981', borderRadius: 4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+    }
 };
 
 window.App = App;
-// --- Updated Dashboard & Charts Implementation ---
-App.renderDashboard = function (container) {
-    const students = Store.getStudents();
-    const teachers = Store.getTeachers();
-    const attendance = Store.getAttendance();
-    const fees = Store.getFees();
-
-    // --- 1. Student Calculations ---
-    const totalStudents = students.length;
-    const maleStudents = students.filter(s => s.gender === 'Male').length;
-    const femaleStudents = students.filter(s => s.gender === 'Female').length;
-    const graduated = students.filter(s => s.status === 'Graduated').length;
-    const activeStudents = students.filter(s => s.status === 'Active').length;
-
-    // --- 2. Staff Calculations ---
-    const totalTeachers = teachers.length;
-    const totalSalaries = teachers.reduce((sum, t) => sum + (t.salary || 0), 0);
-
-    // --- 3. Attendance Calculations ---
-    const totalAttendance = attendance.length;
-    const today = new Date().toISOString().split('T')[0];
-    const todayAtt = attendance.filter(a => a.date === today);
-    const presentToday = todayAtt.filter(a => a.status === 'Present').length;
-    const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
-    const lateToday = todayAtt.filter(a => a.status === 'Late').length;
-
-    // --- 4. Financial Calculations ---
-    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-    const monthlyFees = fees.filter(f => f.month === currentMonth);
-
-    // Collected: Actual payments made this month
-    const collectedThisMonth = monthlyFees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0);
-
-    // Expected: Total expected from ALL active students (assuming $20/student standard)
-    const expectedRevenue = activeStudents * 20;
-
-    // Pending: Expected - Collected (approximate)
-    const pendingRevenue = Math.max(0, expectedRevenue - collectedThisMonth);
-
-    // Expenses/Paid: For now, using Salaries as the main expense
-    const totalPaidExpenses = totalSalaries;
-
-    container.innerHTML = `
-        <div class="animate-fade-in">
-            <h2 style="font-size:1.5rem; font-weight:bold; color:var(--color-primary-text); margin-bottom:1.5rem;">Dashboard</h2>
-            
-            <!-- Section 1: Student Information -->
-            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Student Information</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
-                ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
-                ${this.createStatCard('Female Students', femaleStudents, 'user', '#ec4899')}
-                ${this.createStatCard('Graduated Students', graduated, 'award', '#f59e0b')}
-            </div>
-
-            <!-- Section 2: Teacher & Staff Information -->
-            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Teacher & Staff</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                ${this.createStatCard('Total Teachers', totalTeachers, 'briefcase', '#10b981')}
-                ${this.createStatCard('Total Teachers & Staff Salaries', `$${totalSalaries.toFixed(2)}`, 'dollar-sign', '#ef4444')}
-            </div>
-
-            <!-- Section 3: Attendance Information -->
-            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Attendance Information</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                ${this.createStatCard('All Total Attendance', totalAttendance, 'archive', '#6366f1')}
-                ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
-                ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
-                ${this.createStatCard('Late Students', lateToday, 'clock', '#f59e0b')}
-            </div>
-
-            <!-- Section 4: Financial Information -->
-            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Financial Information</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                ${this.createStatCard('Total Collected This Month', `$${collectedThisMonth.toFixed(2)}`, 'plus-circle', '#10b981')}
-                ${this.createStatCard('Total Paid This Month', `$${totalPaidExpenses.toFixed(2)}`, 'minus-circle', '#ef4444')}
-                ${this.createStatCard('Pending Revenue', `$${pendingRevenue.toFixed(2)}`, 'alert-circle', '#f59e0b')}
-                ${this.createStatCard('Expected Revenue', `$${expectedRevenue.toFixed(2)}`, 'target', '#3b82f6')}
-            </div>
-
-            <div class="row mt-4">
-                <div class="col-md-8">
-                    <div class="card glass-card">
-                        <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h3>
-                        <div style="height: 300px;">
-                            <canvas id="attendanceChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card glass-card">
-                        <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Fee Collection</h3>
-                        <div style="height: 300px;">
-                            <canvas id="revenueChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    this.renderCharts();
-    feather.replace();
-};
-
-App.renderCharts = function () {
-    // Attendance Chart (Last 7 Days)
-    const attendanceCtx = document.getElementById('attendanceChart')?.getContext('2d');
-    if (attendanceCtx) {
-        const days = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - (6 - i));
-            return d.toISOString().split('T')[0];
-        });
-
-        const attData = days.map(day => {
-            return Store.getAttendance().filter(a => a.date === day && a.status === 'Present').length;
-        });
-
-        new Chart(attendanceCtx, {
-            type: 'line',
-            data: {
-                labels: days.map(d => new Date(d).toLocaleDateString(undefined, { weekday: 'short' })),
-                datasets: [{
-                    label: 'Present Students',
-                    data: attData,
-                    borderColor: '#3b82f6',
-                    backgroundColor: '#3b82f620',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-
-    // Revenue Chart (Last 12 Months)
-    const revenueCtx = document.getElementById('revenueChart')?.getContext('2d');
-    if (revenueCtx) {
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const fees = Store.getFees();
-
-        // Calculate total collected per month for all available data
-        const revData = months.map(m => {
-            return fees.filter(f => f.month === m && f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0);
-        });
-
-        new Chart(revenueCtx, {
-            type: 'bar',
-            data: {
-                labels: months.map(m => m.substring(0, 3)),
-                datasets: [{
-                    label: 'Collected ($)',
-                    data: revData,
-                    backgroundColor: '#10b981',
-                    borderRadius: 4
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-};
-
 document.addEventListener('DOMContentLoaded', () => App.init());

@@ -33,7 +33,7 @@ const Store = {
             { email: 'accounts@alhudaschool.edu', role: 'fees', name: 'Accounts Officer' }
         ],
         examMarks: [],
-        dataVersion: 18,
+        dataVersion: 20,
         lastUpdated: Date.now()
     },
 
@@ -57,10 +57,10 @@ const Store = {
             });
         }
 
-        if (this.state.students.length !== 120 || this.state.dataVersion < 18) {
-            console.log('🔄 Refreshing system to match user dashboard requirements (120 students)...');
+        if (this.state.students.length !== 120 || this.state.dataVersion < 20) {
+            console.log('🔄 Refreshing system to match user dashboard requirements (120 students - v20)...');
             this.seedData();
-            this.state.dataVersion = 18;
+            this.state.dataVersion = 20;
             this.saveToStorage();
         }
     },
@@ -562,7 +562,7 @@ const Store = {
 
     // --- Seeding ---
     seedData() {
-        console.log('🌱 Seeding fresh AL-Huda data (v18 - 120 Students)...');
+        console.log('🌱 Seeding fresh AL-Huda data (v20 - 120 Students)...');
         this.state.students = [];
         this.state.teachers = [];
         this.state.fees = [];
@@ -571,13 +571,12 @@ const Store = {
         this.state.examMarks = [];
 
         const GRADES = ["Form 1", "Form 2", "Form 3", "Form 4"];
-        const SECTIONS = ["A", "B"]; // 2 sections * 15 students * 4 forms = 120 students
+        const SECTIONS = ["A", "B"];
         const firstNames = ["Ahmed", "Mohamed", "Ali", "Yussuf", "Hassan", "Ibrahim", "Abdirahman", "Omar", "Khadija", "Fartun", "Leyla", "Hibo", "Zahra", "Sahra", "Naima", "Fowzia"];
         const lastNames = ["Farah", "Gedi", "Dualeh", "Nur", "Ali", "Hassan", "Mohamed", "Abdi", "Warsame", "Omar"];
 
         let idCounter = 1000;
-        let maleCount = 0;
-        let femaleCount = 0;
+        let freeCount = 0;
 
         GRADES.forEach(grade => {
             SECTIONS.forEach(section => {
@@ -585,9 +584,14 @@ const Store = {
                     const fname = firstNames[Math.floor(Math.random() * firstNames.length)];
                     const lname = lastNames[Math.floor(Math.random() * lastNames.length)];
 
-                    // Controlled gender to keep it dynamic and observable
                     let gender = (this.state.students.length % 2 === 0) ? 'Male' : 'Female';
-                    if (gender === 'Male') maleCount++; else femaleCount++;
+
+                    // Controlled free students (20 total out of 120)
+                    let isFree = false;
+                    if (freeCount < 20 && Math.random() > 0.8) {
+                        isFree = true;
+                        freeCount++;
+                    }
 
                     const student = {
                         id: `STU-${idCounter++}`,
@@ -595,7 +599,7 @@ const Store = {
                         fullName: `${fname} ${lname} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
                         grade: grade,
                         section: section,
-                        isFree: false,
+                        isFree: isFree,
                         parentName: `${lname} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
                         parentPhone: `615-${100000 + Math.floor(Math.random() * 900000)}`,
                         enrollmentDate: "2024-09-01",
@@ -609,48 +613,72 @@ const Store = {
         });
 
         // Seed Exactly 4 Teachers ($250 each = $1000 total)
-        for (let i = 1; i <= 4; i++) {
+        const teacherData = [
+            { name: "Mr. Abdi Mohamed", gender: "Male" },
+            { name: "Ms. Aisha Farah", gender: "Female" },
+            { name: "Mr. Omar Ali", gender: "Male" },
+            { name: "Ms. Khadija Gedi", gender: "Female" }
+        ];
+
+        teacherData.forEach((t, i) => {
             this.state.teachers.push({
-                id: `TCH-${i.toString().padStart(3, '0')}`,
-                name: `${firstNames[i % firstNames.length]} ${lastNames[i % lastNames.length]}`,
-                phone: `615-${200000 + i}`,
-                gender: i % 2 === 0 ? 'Female' : 'Male',
+                id: `TCH-00${i + 1}`,
+                name: t.name,
+                phone: `615-20000${i + 1}`,
+                gender: t.gender,
                 salary: 250.00,
                 subject: 'General'
             });
-        }
+        });
 
-        // Seed Attendance (96 Present, 15 Absent, 9 Late = 120 total)
+        // Seed Attendance (96 Present, 15 Absent, 9 Late)
         const todayStr = new Date().toISOString().split('T')[0];
         this.state.students.forEach((s, idx) => {
             let status = 'Present';
             if (idx < 96) status = 'Present';
-            else if (idx < 111) status = 'Absent'; // 96 + 15 = 111
-            else status = 'Late'; // 111 + 9 = 120
+            else if (idx < 111) status = 'Absent';
+            else status = 'Late';
 
             this.state.attendance.push({ studentId: s.id, date: todayStr, status: status });
         });
 
-        // Seed Fees ($5,200 Expected, $3,000 Collected, $2,200 Pending)
+        // Seed Fees ($2,000 Expected, $1,500 Collected, $500 Pending)
         const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-        const feePerStudent = 5200 / 120; // Exactly 43.333...
+        let payingStudents = this.state.students.filter(s => !s.isFree);
+
+        // Let's force exactly 100 paying students to hit $2,000 expected at $20/each
+        // We'll adjust the state if needed
+        if (payingStudents.length !== 100) {
+            // Adjust markers
+            let count = 0;
+            this.state.students.forEach((s, i) => {
+                if (count < 100) {
+                    s.isFree = false;
+                    count++;
+                } else {
+                    s.isFree = true;
+                }
+            });
+        }
+        payingStudents = this.state.students.filter(s => !s.isFree); // Re-filter after adjustment
+
+        let paidCount = 0;
         this.state.students.forEach((s, idx) => {
-            // We need to collect $3,000. 3000 / 43.33 ≈ 69.2 students. 
-            // We'll mark 69 students as PAID and 1 student as PARTIALLY PAID to hit exactly 3000 if possible, 
-            // but status-based logic usually works best.
-            const isPaid = idx < 69;
-            let amountPaid = isPaid ? feePerStudent : 0;
-            if (idx === 69) amountPaid = 3000 - (69 * feePerStudent); // Residual to hit exactly 3000
+            if (s.isFree) return;
+
+            // We need $1,500 collected total. At $20/student, that's 75 students.
+            const isPaid = paidCount < 75;
+            if (isPaid) paidCount++;
 
             this.state.fees.push({
                 id: `FEE-${idx}`,
                 studentId: s.id,
                 month: currentMonth,
                 year: this.state.currentYear,
-                amount: feePerStudent,
-                amountPaid: amountPaid,
-                status: isPaid ? 'PAID' : (amountPaid > 0 ? 'PARTIAL' : 'UNPAID'),
-                datePaid: amountPaid > 0 ? todayStr : null
+                amount: 20,
+                amountPaid: isPaid ? 20 : 0,
+                status: isPaid ? 'PAID' : 'UNPAID',
+                datePaid: isPaid ? todayStr : null
             });
         });
 
@@ -662,6 +690,57 @@ const Store = {
     getAttendance() { return this.state.attendance; },
     getFees() { return this.state.fees; },
     getExams() { return this.state.exams; },
+
+    getStudent(id) {
+        return this.state.students.find(s => s.id === id);
+    },
+
+    addStudent(student) {
+        const newStudent = {
+            id: "STU-" + Date.now().toString().slice(-6),
+            isActive: true,
+            enrollmentDate: new Date().toISOString().split('T')[0],
+            academicYear: this.state.currentYear,
+            status: 'Active',
+            ...student
+        };
+        this.state.students.push(newStudent);
+        this.saveToStorage();
+        return newStudent;
+    },
+
+    updateStudent(data) {
+        const idx = this.state.students.findIndex(s => s.id === data.id);
+        if (idx !== -1) {
+            this.state.students[idx] = { ...this.state.students[idx], ...data };
+            this.saveToStorage();
+            return true;
+        }
+        return false;
+    },
+
+    deleteStudent(id) {
+        this.state.students = this.state.students.filter(s => s.id !== id);
+        this.saveToStorage();
+        return true;
+    },
+
+    updateTeacher(data) {
+        const idx = this.state.teachers.findIndex(t => t.id === data.id);
+        if (idx !== -1) {
+            this.state.teachers[idx] = { ...this.state.teachers[idx], ...data };
+            this.saveToStorage();
+            return true;
+        }
+        return false;
+    },
+
+    deleteTeacher(id) {
+        this.state.teachers = this.state.teachers.filter(t => t.id !== id);
+        this.saveToStorage();
+        return true;
+    },
+
     getExamMarks(studentId, year = this.state.currentYear) {
         return this.state.examMarks.find(m => m.studentId === studentId && m.year === year) || { marks: {} };
     },
@@ -680,7 +759,7 @@ const Store = {
         const stored = localStorage.getItem('dugsiga_data');
         if (stored) {
             const parsed = JSON.parse(stored);
-            if (parsed.dataVersion < 18) {
+            if (parsed.dataVersion < 20) {
                 this.seedData();
             } else {
                 this.state = parsed;
@@ -689,14 +768,16 @@ const Store = {
     },
 
     saveToStorage(sync = true) {
+        this.state.lastUpdated = Date.now();
         localStorage.setItem('dugsiga_data', JSON.stringify(this.state));
         if (sync && window.syncToCloud) window.syncToCloud(this.state);
+        window.dispatchEvent(new CustomEvent('state-updated'));
     },
 
     runMigrations() {
-        if (this.state.dataVersion < 18) {
+        if (this.state.dataVersion < 20) {
             this.seedData();
-            this.state.dataVersion = 18;
+            this.state.dataVersion = 20;
             this.saveToStorage();
         }
     },
