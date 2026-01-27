@@ -35,12 +35,13 @@ const Store = {
         academicYears: ["2025-2026", "2026-2027"],
         currentYear: "2025-2026",
         exams: [],
-        dataVersion: 8,
-        lastUpdated: 0 // Used for robust conflict resolution
+        dataVersion: 11,
+        lastUpdated: Date.now()
     },
 
     async init() {
         this.loadFromStorage();
+        this.runMigrations(); // Fix existing data for old users
 
         // Proactive Firebase Auth Listener
         // This ensures sync starts IMMEDIATELY when the user is confirmed,
@@ -97,6 +98,43 @@ const Store = {
             // Overwrite stored users with current hard-coded list (Source of Truth for Roles)
             parsed.users = this.state.users;
             this.state = parsed;
+            this.runMigrations(); // Fix existing data
+        }
+    },
+
+    runMigrations() {
+        if (!this.state.settings) this.state.settings = {};
+
+        // 1. Fix Fee Amounts ($50 -> $20) for ALL existing records
+        let updatedFees = 0;
+        if (this.state.fees) {
+            this.state.fees.forEach(f => {
+                if (f.amount === 50) {
+                    f.amount = 20;
+                    if (f.status === 'PAID') f.amountPaid = 20;
+                    updatedFees++;
+                }
+            });
+        }
+
+        // 2. Clear Demo Mode if detected
+        if (this.state.settings.principalName === 'maxamed maxamed abdi' || this.state.settings.principalName === 'Sheikh Hassan Ali') {
+            this.state.settings.principalName = 'abdulahi abdi';
+            console.log('✅ Updated Principal Name to abdulahi abdi');
+        }
+
+        // 3. Ensure Exams exist and are formatted correctly
+        if (!this.state.exams || this.state.exams.length === 0) {
+            this.state.exams = [
+                { id: 'EXAM-001', name: 'Test Exam 2025-09-12', type: 'Teacher-based', term: 'Term 1', weight: 33.33, subjects: 3, students: 4, status: 'Open', date: '2025-09-12' },
+                { id: 'EXAM-002', name: 'imtixaan', type: 'School Import', term: 'Final', weight: 100.00, subjects: 3, students: 3, status: 'Open', date: '2025-09-10' },
+                { id: 'EXAM-003', name: 'Final Exam', type: 'Final', term: 'Final', weight: 100.00, subjects: 3, students: 0, status: 'Open', date: '2025-10-01' }
+            ];
+        }
+
+        if (updatedFees > 0) {
+            console.log(`✅ Migrated ${updatedFees} fee records to $20`);
+            this.saveToStorage(false); // Silent save, no need to push to cloud now
         }
     },
 

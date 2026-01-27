@@ -601,31 +601,32 @@ const App = {
         const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
         const lateToday = todayAtt.filter(a => a.status === 'Late').length;
 
+        // Financial Summary
+        const expected = monthlyFees.reduce((sum, f) => sum + (f.amount || 20), 0);
+        const pending = expected - collected;
+
         container.innerHTML = `
             <div class="animate-fade-in">
-                <h2 style="font-size:1.5rem; font-weight:bold; color:var(--color-primary-text); margin-bottom:1.5rem;">Dashboard</h2>
+                <h2 style="font-size:1.5rem; font-weight:bold; color:var(--color-primary-text); margin-bottom:1.5rem;">System Overview</h2>
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
-                    <!-- Row 1 -->
+                    <!-- Row 1: Students -->
                     ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
                     ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
-                    ${this.createStatCard('Female Students', femaleStudents, 'user', '#ec4899')} <!-- Assuming 'user' as female icon alternative if needed -->
-                    ${this.createStatCard('Total Teachers', totalTeachers, 'briefcase', '#10b981')}
+                    ${this.createStatCard('Female Students', femaleStudents, 'heart', '#ec4899')}
+                    ${this.createStatCard('Graduated', graduated, 'award', '#8b5cf6')}
 
-                    <!-- Row 2 -->
-                    ${this.createStatCard('Graduated Students', graduated, 'award', '#f59e0b')}
-                    ${this.createStatCard('Total Collected This Month', `$${collected.toFixed(2)}`, 'dollar-sign', '#10b981')}
-                    ${this.createStatCard('Total Attendance This Month', monthlyAttendance, 'calendar', '#3b82f6')}
-                    ${this.createStatCard('All Total Attendance', totalAttendance, 'check-square', '#ec4899')}
-
-                    <!-- Row 3 -->
-                    ${this.createStatCard('Total Teachers & Staff Salaries', `$${totalSalaries.toFixed(2)}`, 'dollar-sign', '#ef4444')}
-                    ${this.createStatCard('Total Paid This Month', paidThisMonth, 'check-circle', '#10b981')}
-                    ${this.createStatCard('Present Today', presentToday, 'check', '#10b981')}
-                    ${this.createStatCard('Absent Today', absentToday, 'x', '#ef4444')}
-
-                    <!-- Row 4 - Late Today -->
+                    <!-- Row 2: Attendance -->
+                    ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
+                    ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
                     ${this.createStatCard('Late Today', lateToday, 'clock', '#f59e0b')}
+                    ${this.createStatCard('Monthly Attendance', monthlyAttendance, 'calendar', '#3b82f6')}
+
+                    <!-- Row 3: Finance -->
+                    ${this.createStatCard('Expected Revenue', `$${expected.toFixed(2)}`, 'pie-chart', '#3b82f6')}
+                    ${this.createStatCard('Collected Fees', `$${collected.toFixed(2)}`, 'dollar-sign', '#10b981')}
+                    ${this.createStatCard('Pending Dues', `$${pending.toFixed(2)}`, 'alert-circle', '#ef4444')}
+                    ${this.createStatCard('Paid Salaries', `$${totalSalaries.toFixed(2)}`, 'briefcase', '#6366f1')}
                 </div>
 
                 <div class="row mt-4">
