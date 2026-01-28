@@ -35,7 +35,7 @@ const Store = {
         examMarks: [],
         academicYears: ["2024-2025"],
         currentYear: "2024-2025",
-        dataVersion: 25,
+        dataVersion: 23,
         lastUpdated: Date.now()
     },
 
@@ -59,10 +59,10 @@ const Store = {
             });
         }
 
-        if (this.state.students.length !== 120 || this.state.dataVersion < 25) {
-            console.log('🔄 Refreshing system to match user dashboard requirements (V25)...');
+        if (this.state.students.length !== 120 || this.state.dataVersion < 23) {
+            console.log('🔄 Refreshing system to match user dashboard requirements (V23)...');
             this.seedData();
-            this.state.dataVersion = 25;
+            this.state.dataVersion = 23;
             this.saveToStorage();
         }
     },
@@ -92,10 +92,8 @@ const Store = {
         const stored = localStorage.getItem('dugsiga_data');
         if (stored) {
             const parsed = JSON.parse(stored);
-            // ONLY merge users if them don't exist in the stored data, to preserve newly created users
-            if (!parsed.users || parsed.users.length === 0) {
-                parsed.users = this.state.users;
-            }
+            // Overwrite stored users with current hard-coded list (Source of Truth for Roles)
+            parsed.users = this.state.users;
             this.state = parsed;
             this.runMigrations(); // Fix existing data
         }
@@ -155,26 +153,27 @@ const Store = {
 
         // Set up real-time listener
         this.unsubscribe = docRef.onSnapshot((doc) => {
-            if (!doc.exists) {
-                console.log('☁️ Creating initial Cloud Master record...');
-                this.syncToCloud();
-                return;
-            }
-
-            // Sync Logic: If it's a remote update (not from us), always sync down if timestamp is different
-            if (!doc.metadata.hasPendingWrites) {
+            if (doc.exists) {
                 const cloudData = doc.data();
                 const cloudTime = cloudData.lastUpdated || 0;
                 const localTime = this.state.lastUpdated || 0;
 
-                if (cloudTime !== localTime) {
-                    console.log('✅ Remote data received (Time: ' + new Date(cloudTime).toLocaleTimeString() + '). Syncing down...');
+                // Sync Logic: Newer Timestamp ALWAYS Wins
+                if (cloudTime > localTime) {
+                    console.log('✅ Newer data found in Cloud (at ' + new Date(cloudTime).toLocaleTimeString() + '). Syncing down...');
                     this.state = { ...this.state, ...cloudData };
                     localStorage.setItem('dugsiga_data', JSON.stringify(this.state));
                     window.dispatchEvent(new CustomEvent('state-updated'));
+                } else if (cloudTime < localTime && localTime > 1) {
+                    console.log('⬆️ Local data is newer (' + new Date(localTime).toLocaleTimeString() + '). Pushing to Cloud...');
+                    this.syncToCloud();
                 }
+                this.updateSyncStatus('synced');
+            } else {
+                // First time setup for this specific user account
+                console.log('☁️ Creating initial Cloud Master record for this account...');
+                this.syncToCloud();
             }
-            this.updateSyncStatus('synced');
         }, (error) => {
             console.error('❌ Sync error:', error);
             if (error.code === 'permission-denied') {
